@@ -4,7 +4,9 @@ from discord.ext import commands
 class Voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.temp_channels = set()
+        
+        if not hasattr(self.bot, "temp_voice_channel_ids"):
+            self.bot.temp_voice_channel_ids = set()
     
     @commands.Cog.listener()
     async def on_voice_state_update(self,member, before, after):
@@ -15,12 +17,12 @@ class Voice(commands.Cog):
         if trigger_id == 0:
             return
         
-        if before.channel and before.channel.id in self.temp_channels:
+        if before.channel and before.channel.id in self.bot.temp_voice_channel_ids:
             if len(before.channel.members) == 0:
                 channel_name_log = before.channel.name
                 try:
                     await before.channel.delete()
-                    self.temp_channels.remove(before.channel.id)
+                    self.bot.temp_voice_channel_ids.discard(before.channel.id)
                     send_log = getattr(self.bot, "send_log", None)
                     if callable(send_log):
                         await send_log(f"Dočasný voice kanál **{channel_name_log}** byl smazán (prázdný).")
@@ -41,8 +43,20 @@ class Voice(commands.Cog):
             channel_name = channel_name.format(member=member)
             category = after.channel.category
             try:
-                new_channel = await guild.create_voice_channel(name=channel_name, category=category)
-                self.temp_channels.add(new_channel.id)
+                overwrites = {
+                    guild.me: discord.PermissionOverwrite(
+                        view_channel=True,
+                        connect=True,
+                        send_messages=True,
+                        read_message_history=True,
+                    )
+                }
+                new_channel = await guild.create_voice_channel(
+                    name=channel_name,
+                    category=category,
+                    overwrites=overwrites,
+                )
+                self.bot.temp_voice_channel_ids.add(new_channel.id)
                 await member.move_to(new_channel)
                 send_log = getattr(self.bot, "send_log", None)
                 if callable(send_log):
@@ -79,16 +93,16 @@ class Voice(commands.Cog):
             return await ctx.send("Sám sobě nemůžeš zablokovat přístup do voice kanálu.")
         if member == ctx.guild.me:
             return await ctx.send("Botovi nemůžeš zablokovat přístup do voice kanálu.")
-        if member.top_role >= ctx.author.top_role:
-            return await ctx.send("Nemůžeš zablokovat přístup členovi se stejnou nebo vyšší rolí.")
+        if member.top_role > ctx.author.top_role:
+            return await ctx.send("Nemůžeš zablokovat přístup členovi s vyšší rolí.")
         
         permissions = channel.permissions_for(member)
         try:
             if permissions.connect:
-                await channel.set_permissions(member, connect=False)
+                await channel.set_permissions(member, connect=False, view_channel=False)
                 await ctx.send(f"{member} má nyní zakázaný přístup do voice kanálu.")
             else:
-                await channel.set_permissions(member, connect=True)
+                await channel.set_permissions(member, connect=True, view_channel=True)
                 await ctx.send(f"{member} má nyní povolený přístup do voice kanálu.")
         except (discord.Forbidden, discord.HTTPException):
             await ctx.send("Nepodařilo se upravit oprávnění kanálu.")

@@ -146,7 +146,8 @@ async def on_message(message):
         await bot.invoke(ctx)
         return
 
-    if message.channel.id not in allowed_channel_ids:
+    temp_voice_channel_ids = getattr(bot, "temp_voice_channel_ids", set())
+    if message.channel.id not in allowed_channel_ids and message.channel.id not in temp_voice_channel_ids:
         return
 
     await bot.invoke(ctx)
