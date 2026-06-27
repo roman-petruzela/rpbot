@@ -1,9 +1,11 @@
-import discord
-from discord.ext import commands
-import yt_dlp
 import asyncio
 import json
 from pathlib import Path
+
+import discord
+import yt_dlp
+from discord.ext import commands
+
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -40,10 +42,14 @@ class Music(commands.Cog):
 
         js_runtimes = ydl_options.get("js_runtimes")
         if isinstance(js_runtimes, str):
-            runtimes_list = [runtime.strip() for runtime in js_runtimes.split(",") if runtime.strip()]
+            runtimes_list = [
+                runtime.strip() for runtime in js_runtimes.split(",") if runtime.strip()
+            ]
             ydl_options["js_runtimes"] = {runtime: {} for runtime in runtimes_list}
         elif isinstance(js_runtimes, list):
-            ydl_options["js_runtimes"] = {runtime: {} for runtime in js_runtimes if isinstance(runtime, str)}
+            ydl_options["js_runtimes"] = {
+                runtime: {} for runtime in js_runtimes if isinstance(runtime, str)
+            }
         elif not isinstance(js_runtimes, dict) or not js_runtimes:
             ydl_options["js_runtimes"] = {"node": {}, "deno": {}}
 
@@ -91,11 +97,13 @@ class Music(commands.Cog):
                     requested_by = track.get("requested_by", "Neznámý uživatel")
                     if not isinstance(source_url, str) or not source_url:
                         continue
-                    cleaned_queue.append({
-                        "title": title,
-                        "source_url": source_url,
-                        "requested_by": requested_by,
-                    })
+                    cleaned_queue.append(
+                        {
+                            "title": title,
+                            "source_url": source_url,
+                            "requested_by": requested_by,
+                        }
+                    )
 
                 if cleaned_queue:
                     self.guild_queues[parsed_guild_id] = cleaned_queue
@@ -160,7 +168,9 @@ class Music(commands.Cog):
 
             await vc.disconnect(force=True)
             self.guild_now_playing.pop(guild_id, None)
-            await self._send_music_log(guild_id, "Odpojeno z voice po 10 minutách neaktivity.")
+            await self._send_music_log(
+                guild_id, "Odpojeno z voice po 10 minutách neaktivity."
+            )
 
         self.guild_idle_tasks[guild_id] = asyncio.create_task(_worker())
 
@@ -175,7 +185,9 @@ class Music(commands.Cog):
                 return
 
             voice_cog = self.bot.get_cog("Voice")
-            temp_channels = getattr(voice_cog, "temp_channels", set()) if voice_cog else set()
+            temp_channels = (
+                getattr(voice_cog, "temp_channels", set()) if voice_cog else set()
+            )
             channel_to_cleanup = vc.channel
 
             await vc.disconnect(force=True)
@@ -188,23 +200,11 @@ class Music(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     pass
 
-            await self._send_music_log(guild_id, "Odpojeno z voice po 1 minutě bez lidí.")
+            await self._send_music_log(
+                guild_id, "Odpojeno z voice po 1 minutě bez lidí."
+            )
 
         self.guild_alone_tasks[guild_id] = asyncio.create_task(_worker())
-
-    def _resolve_ffmpeg_executable(self) -> str:
-        configured = self.config.get("ffmpeg_executable")
-        if isinstance(configured, str) and configured.strip():
-            configured_path = Path(configured.strip())
-            if configured_path.exists():
-                return str(configured_path)
-
-        project_root = Path(__file__).resolve().parent.parent
-        bundled_ffmpeg = project_root / "sources" / "ffmpeg.exe"
-        if bundled_ffmpeg.exists():
-            return str(bundled_ffmpeg)
-
-        return "ffmpeg"
 
     def _pick_stream_url(self, info: dict) -> str | None:
         direct_url = info.get("url")
@@ -234,7 +234,9 @@ class Music(commands.Cog):
             if isinstance(info, dict) and info.get("entries"):
                 entries = [entry for entry in info.get("entries", []) if entry]
                 if not entries:
-                    raise ValueError("Playlist/query did not return any playable entries")
+                    raise ValueError(
+                        "Playlist/query did not return any playable entries"
+                    )
                 info = entries[0]
 
             if not isinstance(info, dict):
@@ -256,7 +258,9 @@ class Music(commands.Cog):
             raise ValueError("Track is missing source_url")
 
         ydl_options = self._build_ydl_options()
-        title, stream_url = await asyncio.to_thread(self._load_track_info, source_url, ydl_options)
+        title, stream_url = await asyncio.to_thread(
+            self._load_track_info, source_url, ydl_options
+        )
 
         resolved_track = dict(track)
         resolved_track["title"] = track.get("title") or title
@@ -264,24 +268,31 @@ class Music(commands.Cog):
         resolved_track.setdefault("source_url", source_url)
         return resolved_track
 
-    async def _start_track(self, channel: discord.abc.Messageable, vc: discord.VoiceClient, guild_id: int, track: dict):
+    async def _start_track(
+        self,
+        channel: discord.abc.Messageable,
+        vc: discord.VoiceClient,
+        guild_id: int,
+        track: dict,
+    ):
         ffmpeg_options = dict(self.config.get("ffmpeg_options", {}))
-        
+
         before_opts = ffmpeg_options.get("before_options", "")
         if "-reconnect" not in before_opts:
-            ffmpeg_options["before_options"] = f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 {before_opts}".strip()
-            
+            ffmpeg_options["before_options"] = (
+                f"-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 {before_opts}".strip()
+            )
+
         opts = ffmpeg_options.get("options", "")
         if "-vn" not in opts:
             ffmpeg_options["options"] = f"-vn -threads 1 {opts}".strip()
 
-        ffmpeg_executable = self._resolve_ffmpeg_executable()
-
         try:
             track = await self._resolve_track_stream(track)
+
+            # Zde je ta hlavní změna! Už nepředáváme "executable", bot použije systémový FFmpeg.
             source = discord.FFmpegPCMAudio(
                 source=track["stream_url"],
-                executable=ffmpeg_executable,
                 **ffmpeg_options,
             )
 
@@ -298,18 +309,22 @@ class Music(commands.Cog):
             self._cancel_idle_task(guild_id)
             self._cancel_alone_task(guild_id)
             await channel.send(f"Právě hraje: **{track['title']}**")
-            
+
         except FileNotFoundError:
             if vc.is_connected():
                 await vc.disconnect(force=True)
-            await channel.send("FFmpeg nebyl na hostiteli nalezen. Nainstaluj FFmpeg a přidej ho do PATH.")
+            await channel.send(
+                "FFmpeg nebyl v systému nalezen. Zkontrolujte, zda je nainstalován (např. přes pacman/apt) a dostupný v PATH."
+            )
         except Exception as e:
             print(f"[play] Failed to start playback: {e}")
             if vc.is_connected() and not vc.is_playing():
                 await vc.disconnect(force=True)
             await channel.send("Nepodařilo se spustit přehrávání.")
 
-    async def _play_next(self, guild_id: int, channel: discord.abc.Messageable, vc: discord.VoiceClient):
+    async def _play_next(
+        self, guild_id: int, channel: discord.abc.Messageable, vc: discord.VoiceClient
+    ):
         queue = self._get_guild_queue(guild_id)
         if not queue:
             self.guild_now_playing.pop(guild_id, None)
@@ -321,7 +336,9 @@ class Music(commands.Cog):
 
         next_track = queue.pop(0)
         self._save_music_state()
-        await self._start_track(channel=channel, vc=vc, guild_id=guild_id, track=next_track)
+        await self._start_track(
+            channel=channel, vc=vc, guild_id=guild_id, track=next_track
+        )
 
     @commands.command()
     async def play(self, ctx, url):
@@ -355,10 +372,14 @@ class Music(commands.Cog):
                 await vc.move_to(channel)
         except discord.ClientException as e:
             print(f"[play] Voice client error: {e}")
-            return await ctx.send("Nepodařilo se připojit do voice kanálu. Zkontroluj, jestli už nejsem připojený, nebo mě restartuj.")
+            return await ctx.send(
+                "Nepodařilo se připojit do voice kanálu. Zkontroluj, jestli už nejsem připojený, nebo mě restartuj."
+            )
         except RuntimeError as e:
             print(f"[play] Runtime voice error: {e}")
-            return await ctx.send("Na hostiteli chybí voice závislosti (nainstaluj PyNaCl).")
+            return await ctx.send(
+                "Na hostiteli chybí voice závislosti (nainstaluj PyNaCl)."
+            )
         except asyncio.TimeoutError:
             return await ctx.send("Připojení do voice kanálu vypršelo.")
         except Exception as e:
@@ -368,7 +389,9 @@ class Music(commands.Cog):
         await ctx.send("Vyhledávám a připravuji audio...")
 
         try:
-            title, url2 = await asyncio.to_thread(self._load_track_info, url, ydl_options)
+            title, url2 = await asyncio.to_thread(
+                self._load_track_info, url, ydl_options
+            )
         except Exception as e:
             print(f"[play] Error while loading video: {e}")
             await ctx.send("Nepodařilo se načíst video.")
@@ -385,9 +408,13 @@ class Music(commands.Cog):
             queue = self._get_guild_queue(ctx.guild.id)
             queue.append(track)
             self._save_music_state()
-            return await ctx.send(f"Přidáno do fronty na pozici **{len(queue)}**: **{title}**")
+            return await ctx.send(
+                f"Přidáno do fronty na pozici **{len(queue)}**: **{title}**"
+            )
 
-        await self._start_track(channel=ctx.channel, vc=vc, guild_id=ctx.guild.id, track=track)
+        await self._start_track(
+            channel=ctx.channel, vc=vc, guild_id=ctx.guild.id, track=track
+        )
 
     @commands.command()
     async def queue(self, ctx):
@@ -455,7 +482,9 @@ class Music(commands.Cog):
 
     @commands.command()
     async def skip(self, ctx):
-        if ctx.voice_client and (ctx.voice_client.is_playing() or ctx.voice_client.is_paused()):
+        if ctx.voice_client and (
+            ctx.voice_client.is_playing() or ctx.voice_client.is_paused()
+        ):
             ctx.voice_client.stop()
             await ctx.send("Přeskočeno.")
         else:
@@ -471,14 +500,24 @@ class Music(commands.Cog):
         lines.append(f"Připojen: {'ano' if vc and vc.is_connected() else 'ne'}")
         if vc and vc.is_connected() and vc.channel:
             lines.append(f"Voice kanál: **{vc.channel.name}**")
-        lines.append(f"Právě hraje: **{now_playing['title']}**" if now_playing else "Právě hraje: nic")
+        lines.append(
+            f"Právě hraje: **{now_playing['title']}**"
+            if now_playing
+            else "Právě hraje: nic"
+        )
         lines.append(f"Ve frontě: **{len(queue)}**")
-        lines.append(f"Perzistence fronty: {'ano' if self.state_path.exists() else 'ne'}")
+        lines.append(
+            f"Perzistence fronty: {'ano' if self.state_path.exists() else 'ne'}"
+        )
 
         idle_task = self.guild_idle_tasks.get(ctx.guild.id)
         alone_task = self.guild_alone_tasks.get(ctx.guild.id)
-        lines.append(f"Idle odpojení (10 min): {'čeká' if idle_task and not idle_task.done() else 'ne'}")
-        lines.append(f"Solo odpojení (1 min): {'čeká' if alone_task and not alone_task.done() else 'ne'}")
+        lines.append(
+            f"Idle odpojení (10 min): {'čeká' if idle_task and not idle_task.done() else 'ne'}"
+        )
+        lines.append(
+            f"Solo odpojení (1 min): {'čeká' if alone_task and not alone_task.done() else 'ne'}"
+        )
 
         await ctx.send("\n".join(lines))
 
