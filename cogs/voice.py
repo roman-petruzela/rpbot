@@ -1,3 +1,5 @@
+import inspect
+
 import discord
 from discord.ext import commands
 
@@ -9,8 +11,26 @@ class Voice(commands.Cog):
         if not hasattr(self.bot, "temp_voice_channel_ids"):
             self.bot.temp_voice_channel_ids = set()
 
-    # @commands.Cog.listener()
-    # async def on_ready(self):
+    @commands.Cog.listener()
+    async def on_ready(self):
+        trigger_id = int(self.bot.config.get("voice_trigger_id", 0) or 0)
+        if trigger_id == 0:
+            return
+
+        channel = self.bot.get_channel(trigger_id)
+        if not channel or not isinstance(channel, discord.VoiceChannel):
+            return
+
+        members = [m for m in channel.members]
+        if not members:
+            return
+
+        new_channel = await self.create_temp_channel(channel.guild.me, channel.category)
+        for member in members:
+            try:
+                await member.move_to(new_channel)
+            except (discord.Forbidden, discord.HTTPException):
+                continue
 
     async def create_temp_channel(self, member, category):
         guild = member.guild
@@ -33,9 +53,10 @@ class Voice(commands.Cog):
                 overwrites=overwrites,
             )
             self.bot.temp_voice_channel_ids.add(new_channel.id)
-            await member.move_to(new_channel)
+            if member != self.bot.user:
+                await member.move_to(new_channel)
             send_log = getattr(self.bot, "send_log", None)
-            if callable(send_log):
+            if send_log and inspect.iscoroutinefunction(send_log):
                 await send_log(
                     f"Dočasný voice kanál **{channel_name}** byl vytvořen pro **{member}**."
                 )
@@ -44,20 +65,22 @@ class Voice(commands.Cog):
                 if not permissions.manage_channels:
                     await new_channel.set_permissions(member, manage_channels=True)
                     send_log = getattr(self.bot, "send_log", None)
-                    if callable(send_log):
+                    if send_log and inspect.iscoroutinefunction(send_log):
                         await send_log(
                             f"{member} je správce kanálu **{channel_name}**."
                         )
             except (discord.Forbidden, discord.HTTPException):
                 send_log = getattr(self.bot, "send_log", None)
-                if callable(send_log):
+                if send_log and inspect.iscoroutinefunction(send_log):
                     await send_log("Nepodařilo se upravit oprávnění kanálu.")
         except (discord.Forbidden, discord.HTTPException) as e:
             send_log = getattr(self.bot, "send_log", None)
-            if callable(send_log):
+            if send_log and inspect.iscoroutinefunction(send_log):
                 await send_log(
                     f"Chyba při vytváření dočasného kanálu pro **{member}**: `{e}`"
                 )
+            return None
+        return new_channel
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -75,13 +98,13 @@ class Voice(commands.Cog):
                     await before.channel.delete()
                     self.bot.temp_voice_channel_ids.discard(before.channel.id)
                     send_log = getattr(self.bot, "send_log", None)
-                    if callable(send_log):
+                    if send_log and inspect.iscoroutinefunction(send_log):
                         await send_log(
                             f"Dočasný voice kanál **{channel_name_log}** byl smazán (prázdný)."
                         )
                 except (discord.Forbidden, discord.HTTPException) as e:
                     send_log = getattr(self.bot, "send_log", None)
-                    if callable(send_log):
+                    if send_log and inspect.iscoroutinefunction(send_log):
                         await send_log(
                             f"Chyba při mazání dočasného kanálu **{channel_name_log}**: `{e}`"
                         )
