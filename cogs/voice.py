@@ -151,6 +151,30 @@ class Voice(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             await ctx.send("Nepodařilo se upravit oprávnění kanálu.")
 
+    @commands.command()
+    async def lock(self, ctx):
+        if not ctx.author.voice:
+            return await ctx.send(
+                "Pro použití tohoto příkazu musíš být ve voice kanálu."
+            )
+        everyone = ctx.guild.default_role
+        channel = ctx.author.voice.channel
+
+        author_permissions = channel.permissions_for(ctx.author)
+        if not author_permissions.manage_channels:
+            return await ctx.send("Tento kanál není pod tvou správou.")
+
+        permissions = channel.permissions_for(everyone)
+        try:
+            if permissions.connect:
+                await channel.set_permissions(everyone, connect=False)
+                await ctx.send(f"{ctx.author} uzamkl tento kanál.")
+            else:
+                await channel.set_permissions(everyone, connect=True)
+                await ctx.send(f"{ctx.author} odemkl tento kanál.")
+        except (discord.Forbidden, discord.HTTPException):
+            await ctx.send("Nepodařilo se upravit oprávnění kanálu.")
+
 
 async def setup(bot):
     await bot.add_cog(Voice(bot))
