@@ -1,31 +1,23 @@
 import asyncio
 import inspect
-import json
-from pathlib import Path
 
 import discord
 from discord.ext import commands
+
+from config_manager import ALLOWED_CHANNEL_IDS, CONFIG, CONTENT, save_config
 
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.content = getattr(bot, "content", {})
-
-    def _save_config(self):
-        config_path = Path(__file__).resolve().parent.parent / "config.json"
-        with open(config_path, "w", encoding="utf-8") as config_file:
-            json.dump(self.bot.config, config_file, ensure_ascii=False, indent=2)
-
-    # Pravidla atd ------------------------------------------------------
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def pravidla(self, ctx):
-        rules_gif_path = self.content.get("rules_gif_path", "")
-        rules_text = self.content.get("rules_text", "")
-        invite_url = self.content.get("invite_url", "")
-        embed_color = self.content.get("embed_color", "")
+    async def pravidla(self, ctx: commands.Context):
+        rules_gif_path = CONTENT.get("rules_gif_path", "")
+        rules_text = CONTENT.get("rules_text", "")
+        invite_url = CONTENT.get("invite_url", "")
+        embed_color = CONTENT.get("embed_color", "")
 
         await ctx.send(file=discord.File(rules_gif_path))
         await ctx.send(rules_text)
@@ -37,15 +29,15 @@ class Admin(commands.Cog):
         view = discord.ui.View()
         await ctx.send(embed=embed, view=view)
 
-    # role management ------------------------------------------------------
-
     @commands.command(name="roleall")
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
-    async def roleall(self, ctx, role: discord.Role):
+    async def roleall(self, ctx: commands.Context, role: discord.Role):
         guild = ctx.guild
-        me = guild.me
+        if guild is None:
+            return
 
+        me = guild.me
         if me is None:
             return await ctx.send("Kritická chyba: účet bota nebyl na serveru nalezen.")
 
@@ -100,8 +92,7 @@ class Admin(commands.Cog):
         )
 
     @roleall.error
-    async def roleall_error(self, ctx, error):
-        """Error handler pro roleall"""
+    async def roleall_error(self, ctx: commands.Context, error):
         if isinstance(error, commands.BadArgument):
             await ctx.send("Použití: `!roleall @Role`")
         elif isinstance(error, commands.MaxConcurrencyReached):
@@ -109,32 +100,22 @@ class Admin(commands.Cog):
                 "Příkaz roleall už na tomto serveru běží. Počkej, až doběhne."
             )
 
-    # config zmeny ------------------------------------------------------
-
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def add_channel(self, ctx, channel: discord.TextChannel):
-        raw_allowed_channels = self.bot.config.get("allowed_channels", [])
-        if isinstance(raw_allowed_channels, int):
-            raw_allowed_channels = [raw_allowed_channels]
-
-        allowed_channel_ids = [int(channel_id) for channel_id in raw_allowed_channels]
-
-        if channel.id in allowed_channel_ids:
+    async def add_channel(self, ctx: commands.Context, channel: discord.TextChannel):
+        if channel.id in ALLOWED_CHANNEL_IDS:
             await ctx.send("Tento kanál už je v seznamu povolených kanálů.")
             return
 
-        allowed_channel_ids.append(channel.id)
-        self.bot.config["allowed_channels"] = allowed_channel_ids
-        self.bot.allowed_channel_ids = set(allowed_channel_ids)
-        self._save_config()
+        ALLOWED_CHANNEL_IDS.add(channel.id)
+        save_config()
 
         await ctx.send(
             f"Kanál **{channel.name}** byl přidán do seznamu povolených kanálů."
         )
 
     @add_channel.error
-    async def add_channel_error(self, ctx, error):
+    async def add_channel_error(self, ctx: commands.Context, error):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(f"Použití: `{ctx.prefix}add_channel #channel`")
         elif isinstance(error, (commands.BadArgument, commands.ChannelNotFound)):
@@ -142,59 +123,48 @@ class Admin(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def rem_channel(self, ctx, channel: discord.TextChannel):
-        raw_allowed_channels = self.bot.config.get("allowed_channels", [])
-        if isinstance(raw_allowed_channels, int):
-            raw_allowed_channels = [raw_allowed_channels]
-
-        allowed_channel_ids = [int(channel_id) for channel_id in raw_allowed_channels]
-
-        if channel.id not in allowed_channel_ids:
+    async def rem_channel(self, ctx: commands.Context, channel: discord.TextChannel):
+        if channel.id not in ALLOWED_CHANNEL_IDS:
             await ctx.send("Tento kanál není v seznamu povolených kanálů.")
             return
 
-        allowed_channel_ids.remove(channel.id)
-        self.bot.config["allowed_channels"] = allowed_channel_ids
-        self.bot.allowed_channel_ids = set(allowed_channel_ids)
-        self._save_config()
+        ALLOWED_CHANNEL_IDS.remove(channel.id)
+        save_config()
 
         await ctx.send(
             f"Kanál **{channel.name}** byl odebrán ze seznamu povolených kanálů."
         )
 
     @rem_channel.error
-    async def rem_channel_error(self, ctx, error):
+    async def rem_channel_error(self, ctx: commands.Context, error):
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send(f"Použití: `{ctx.prefix}rem_channel #channel`")
         elif isinstance(error, (commands.BadArgument, commands.ChannelNotFound)):
             await ctx.send("Neplatný kanál.")
 
-    # logging ------------------------------------------------------
-
     @commands.command(name="log")
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
-    async def set_log_channel(self, ctx, channel: discord.TextChannel | None = None):
-        """Nastaví kanál pro bot logy"""
+    async def set_log_channel(self, ctx: commands.Context, channel: discord.TextChannel | None = None):  # fmt: skip
         target_channel = channel or ctx.channel
-        self.bot.config["log_channel_id"] = target_channel.id
-        self._save_config()
+        if target_channel is None:
+            return
 
-        await ctx.send(f"Logovací kanál byl nastaven na {target_channel.mention}.")
+        CONFIG["log_channel_id"] = target_channel.id
+        save_config()
+
+        channel_mention = getattr(target_channel, "mention", str(target_channel))
+        await ctx.send(f"Logovací kanál byl nastaven na {channel_mention}.")
 
         send_log = getattr(self.bot, "send_log", None)
         if send_log and inspect.iscoroutinefunction(send_log):
-            await send_log(
-                f"Logovací kanál změnil **{ctx.author}** na {target_channel.mention}."
-            )
+            ctx_mention = getattr(ctx.channel, "mention", str(ctx.channel))
+            await send_log(f"Logovací kanál změnil **{ctx.author}** na {ctx_mention}.")
 
     @set_log_channel.error
-    async def set_log_channel_error(self, ctx, error):
-        """Error handler for log"""
+    async def set_log_channel_error(self, ctx: commands.Context, error):
         if isinstance(error, (commands.BadArgument, commands.ChannelNotFound)):
             await ctx.send("Neplatný kanál.")
-
-    # dalsi? ------------------------------------------------------
 
 
 async def setup(bot):

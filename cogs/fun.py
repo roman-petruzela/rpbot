@@ -74,7 +74,7 @@ class Fun(commands.Cog):
         await ctx.send(f"**{vysledek}**")
 
     @commands.command(name="random")
-    async def random_number(self, ctx, cislo1, cislo2):
+    async def random_number(self, ctx, cislo1: int | None = None, cislo2: int | None = None):  # fmt: skip
         """Vyber náhodnou možnost ze zadaných"""
         c1: int
         c2: int

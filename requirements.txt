@@ -3,3 +3,4 @@ discord.py[voice]
 yt-dlp
 PyNaCl
 google-genai
+python-dotenv
