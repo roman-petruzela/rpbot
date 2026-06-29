@@ -1,14 +1,16 @@
-import discord
-from discord.ext import commands
 import asyncio
+import inspect
 import json
 from pathlib import Path
+
+import discord
+from discord.ext import commands
+
 
 class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.content = getattr(bot, "content", {})
-
 
     def _save_config(self):
         config_path = Path(__file__).resolve().parent.parent / "config.json"
@@ -30,7 +32,7 @@ class Admin(commands.Cog):
         embed = discord.Embed(
             title="Pozvi své kamarády!",
             description=f"```{invite_url}```",
-            color=discord.Color.from_str(embed_color)
+            color=discord.Color.from_str(embed_color),
         )
         view = discord.ui.View()
         await ctx.send(embed=embed, view=view)
@@ -51,7 +53,9 @@ class Admin(commands.Cog):
         role_limit = app_role or me.top_role
 
         if not guild.me.guild_permissions.manage_roles:
-            return await ctx.send("Chybí oprávnění: pro tuto akci potřebuji oprávnění 'Spravovat role'.")
+            return await ctx.send(
+                "Chybí oprávnění: pro tuto akci potřebuji oprávnění 'Spravovat role'."
+            )
 
         if role >= role_limit:
             if app_role is not None:
@@ -62,7 +66,9 @@ class Admin(commands.Cog):
                 "Tuto roli nemohu přiřadit, protože je vyšší nebo stejná jako moje nejvyšší role."
             )
 
-        await ctx.send(f"Začínám přidělovat roli **{role.name}** všem členům. Může to chvíli trvat...")
+        await ctx.send(
+            f"Začínám přidělovat roli **{role.name}** všem členům. Může to chvíli trvat..."
+        )
 
         added = 0
         skipped = 0
@@ -81,7 +87,9 @@ class Admin(commands.Cog):
                 continue
 
             try:
-                await member.add_roles(role, reason=f"Bulk role assignment by {ctx.author}")
+                await member.add_roles(
+                    role, reason=f"Bulk role assignment by {ctx.author}"
+                )
                 added += 1
                 await asyncio.sleep(0.2)
             except (discord.Forbidden, discord.HTTPException):
@@ -97,11 +105,13 @@ class Admin(commands.Cog):
         if isinstance(error, commands.BadArgument):
             await ctx.send("Použití: `!roleall @Role`")
         elif isinstance(error, commands.MaxConcurrencyReached):
-            await ctx.send("Příkaz roleall už na tomto serveru běží. Počkej, až doběhne.")
-    
+            await ctx.send(
+                "Příkaz roleall už na tomto serveru běží. Počkej, až doběhne."
+            )
+
     # config zmeny ------------------------------------------------------
-    
-    @commands.command()        
+
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def add_channel(self, ctx, channel: discord.TextChannel):
         raw_allowed_channels = self.bot.config.get("allowed_channels", [])
@@ -119,7 +129,9 @@ class Admin(commands.Cog):
         self.bot.allowed_channel_ids = set(allowed_channel_ids)
         self._save_config()
 
-        await ctx.send(f"Kanál **{channel.name}** byl přidán do seznamu povolených kanálů.")
+        await ctx.send(
+            f"Kanál **{channel.name}** byl přidán do seznamu povolených kanálů."
+        )
 
     @add_channel.error
     async def add_channel_error(self, ctx, error):
@@ -127,9 +139,8 @@ class Admin(commands.Cog):
             await ctx.send(f"Použití: `{ctx.prefix}add_channel #channel`")
         elif isinstance(error, (commands.BadArgument, commands.ChannelNotFound)):
             await ctx.send("Neplatný kanál.")
-            
-            
-    @commands.command()        
+
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def rem_channel(self, ctx, channel: discord.TextChannel):
         raw_allowed_channels = self.bot.config.get("allowed_channels", [])
@@ -147,7 +158,9 @@ class Admin(commands.Cog):
         self.bot.allowed_channel_ids = set(allowed_channel_ids)
         self._save_config()
 
-        await ctx.send(f"Kanál **{channel.name}** byl odebrán ze seznamu povolených kanálů.")
+        await ctx.send(
+            f"Kanál **{channel.name}** byl odebrán ze seznamu povolených kanálů."
+        )
 
     @rem_channel.error
     async def rem_channel_error(self, ctx, error):
@@ -161,7 +174,7 @@ class Admin(commands.Cog):
     @commands.command(name="log")
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
-    async def set_log_channel(self, ctx, channel: discord.TextChannel = None):
+    async def set_log_channel(self, ctx, channel: discord.TextChannel | None = None):
         """Nastaví kanál pro bot logy"""
         target_channel = channel or ctx.channel
         self.bot.config["log_channel_id"] = target_channel.id
@@ -170,7 +183,7 @@ class Admin(commands.Cog):
         await ctx.send(f"Logovací kanál byl nastaven na {target_channel.mention}.")
 
         send_log = getattr(self.bot, "send_log", None)
-        if callable(send_log):
+        if send_log and inspect.iscoroutinefunction(send_log):
             await send_log(
                 f"Logovací kanál změnil **{ctx.author}** na {target_channel.mention}."
             )
@@ -182,6 +195,7 @@ class Admin(commands.Cog):
             await ctx.send("Neplatný kanál.")
 
     # dalsi? ------------------------------------------------------
+
 
 async def setup(bot):
     await bot.add_cog(Admin(bot))

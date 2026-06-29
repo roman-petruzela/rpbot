@@ -1,3 +1,4 @@
+# fully vibecoded
 import asyncio
 import json
 import logging
@@ -7,6 +8,7 @@ import tempfile
 import time
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -21,17 +23,16 @@ logger = logging.getLogger("rpbot.ai")
 
 class AI(commands.Cog):
     def __init__(self, bot):
-        """Inicializace cogu.
-
-        `bot` je instance hlavního Discord bota, přes kterou čteme konfiguraci,
-        posíláme zprávy a registrujeme eventy/commandy.
-        """
+        """Inicializace cogu."""
         self.bot = bot
-        self._client = None
-        # Ukládá čas poslední ÚSPĚŠNÉ odpovědi v kanálu (pro rate-limit).
-        self._last_response_ts = {}
-        self._default_ai_config = self._load_ai_config_from_config_file()
+        # Sjednotíme config rovnou do třídy, aby Pyright neřval na self.bot.config
+        self.config: dict[str, Any] = getattr(bot, "config", {})
 
+        self._client: Any = None
+        # Typově ošetřený slovník pro rate-limity (id_kanalu: timestamp_v_sekundach)
+        self._last_response_ts: dict[int, float] = {}
+
+        self._default_ai_config = self._load_ai_config_from_config_file()
         self._ensure_ai_config_defaults()
         self._init_client()
 
@@ -40,12 +41,7 @@ class AI(commands.Cog):
         return Path(__file__).resolve().parent.parent / "config.json"
 
     def _save_config(self):
-        """Uloží konfiguraci atomicky.
-
-        Nejprve zapisujeme do dočasného souboru ve stejné složce a teprve potom
-        nahradíme původní soubor pomocí `os.replace`, aby se minimalizovalo riziko
-        poškození `config.json` při pádu procesu.
-        """
+        """Uloží konfiguraci atomicky."""
         config_path = self._config_path()
         config_dir = config_path.parent
 
@@ -58,17 +54,14 @@ class AI(commands.Cog):
             suffix=".tmp",
         ) as temp_file:
             temp_path = Path(temp_file.name)
-            json.dump(self.bot.config, temp_file, ensure_ascii=False, indent=2)
+            json.dump(self.config, temp_file, ensure_ascii=False, indent=2)
             temp_file.flush()
             os.fsync(temp_file.fileno())
 
         os.replace(temp_path, config_path)
 
     def _load_ai_config_from_config_file(self) -> dict:
-        """Načte AI nastavení z `config.json`.
-
-        Pokud se soubor nepodaří načíst, použije se fallback z `self.bot.config`.
-        """
+        """Načte AI nastavení z `config.json`."""
         config_path = self._config_path()
         try:
             with open(config_path, "r", encoding="utf-8") as config_file:
@@ -77,12 +70,12 @@ class AI(commands.Cog):
                 return ai_defaults if isinstance(ai_defaults, dict) else {}
         except Exception as exc:
             logger.warning("Unable to load AI config from config.json: %s", exc)
-            fallback_ai = self.bot.config.get("ai", {})
+            fallback_ai = self.config.get("ai", {})
             return fallback_ai if isinstance(fallback_ai, dict) else {}
 
     def _ensure_ai_config_defaults(self):
         """Doplní chybějící klíče v `config['ai']` podle výchozích hodnot."""
-        ai_cfg = self.bot.config.setdefault("ai", {})
+        ai_cfg = self.config.setdefault("ai", {})
         for key, value in self._default_ai_config.items():
             ai_cfg.setdefault(key, value)
 
@@ -93,12 +86,12 @@ class AI(commands.Cog):
         if ai_cfg.get("model") == "gemini-2.5-flash":
             ai_cfg["model"] = "gemini-3.1-flash-lite"
 
-    def _parse_channel_ids(self, raw_channels) -> set[int]:
+    def _parse_channel_ids(self, raw_channels: Any) -> set[int]:
         """Převede hodnotu (int/list) z configu na množinu validních channel ID."""
         if isinstance(raw_channels, int):
             raw_channels = [raw_channels]
 
-        channel_ids = set()
+        channel_ids: set[int] = set()
         for channel_id in raw_channels or []:
             try:
                 channel_ids.add(int(channel_id))
@@ -128,7 +121,9 @@ class AI(commands.Cog):
 
         api_key = self._load_api_key()
         if not api_key:
-            logger.warning("No GenAI API key found (GOOGLE_API_KEY/GEMINI_API_KEY/genai_token).")
+            logger.warning(
+                "No GenAI API key found (GOOGLE_API_KEY/GEMINI_API_KEY/genai_token)."
+            )
             return
 
         try:
@@ -137,15 +132,11 @@ class AI(commands.Cog):
             logger.exception("Failed to initialize GenAI client: %s", exc)
 
     def _is_rate_limited(self, channel_id: int) -> bool:
-        """Vrátí `True`, pokud je stále aktivní cooldown pro daný kanál.
-
-        Poznámka: timestamp se zde jen čte, neukládá. Uložíme ho až po úspěšné
-        odpovědi (viz `_mark_responded`).
-        """
-        ai_cfg = self.bot.config.get("ai", {})
+        """Vrátí `True`, pokud je stále aktivní cooldown pro daný kanál."""
+        ai_cfg = self.config.get("ai", {})
         min_interval = float(ai_cfg.get("min_response_interval_seconds", 6))
         now = asyncio.get_running_loop().time()
-        last = self._last_response_ts.get(channel_id, 0)
+        last = self._last_response_ts.get(channel_id, 0.0)
 
         return now - last < min_interval
 
@@ -164,22 +155,22 @@ class AI(commands.Cog):
 
     async def _build_prompt(self, message: discord.Message, user_input: str) -> str:
         """Sestaví prompt z krátké historie a nové zprávy uživatele."""
-        # Tady stavíme POUZE konverzaci, osobnost (system_prompt) se řeší jinde
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         history_window_hours = max(0.0, float(ai_cfg.get("history_window_hours", 12)))
         history_message_limit = max(1, int(ai_cfg.get("history_message_limit", 50)))
         history_after = discord.utils.utcnow() - timedelta(hours=history_window_hours)
 
         history_lines = []
-        async for item in message.channel.history(limit=history_message_limit, after=history_after):
+        async for item in message.channel.history(
+            limit=history_message_limit, after=history_after
+        ):
             if item.id == message.id:
                 continue
-            
+
             content = item.clean_content.strip()
             if not content:
                 continue
-            
-            # Aby bot věděl, co psal on a co ostatní
+
             name = "RPBot" if item.author == self.bot.user else item.author.display_name
             history_lines.append(f"{name}: {content}")
 
@@ -195,7 +186,7 @@ class AI(commands.Cog):
         else:
             return f"Uživatel {message.author.display_name} říká: {user_input}"
 
-    def _extract_finish_reason(self, response) -> str:
+    def _extract_finish_reason(self, response: Any) -> str:
         """Vytáhne `finish_reason` z odpovědi SDK v bezpečné podobě."""
         candidates = getattr(response, "candidates", None) or []
         if not candidates:
@@ -220,17 +211,19 @@ class AI(commands.Cog):
         model_used: str,
     ):
         send_log = getattr(self.bot, "send_log", None)
-        if not callable(send_log):
+        if send_log is None:
             return
 
-        configured_model = self.bot.config.get("ai", {}).get("model", "unknown")
+        configured_model = self.config.get("ai", {}).get("model", "unknown")
         await send_log(
             f"AI odpověď ({source}) v {channel.mention} od **{user}** | nastavený_model=`{configured_model}` | použitý_model=`{model_used}` | finish_reason=`{finish_reason}`"
         )
 
-    async def _log_ai_error(self, *, source: str, channel_name: str, user_name: str, error: Exception):
+    async def _log_ai_error(
+        self, *, source: str, channel_name: str, user_name: str, error: Exception
+    ):
         send_log = getattr(self.bot, "send_log", None)
-        if not callable(send_log):
+        if send_log is None:
             return
 
         await send_log(
@@ -238,11 +231,7 @@ class AI(commands.Cog):
         )
 
     def _is_model_not_found_error(self, exc: Exception) -> bool:
-        """Heuristika pro detekci 'model neexistuje / není dostupný'.
-
-        SDK může vracet různé exception typy podle verze, proto kombinujeme
-        kontrolu známých textů i případných atributů status kódů.
-        """
+        """Heuristika pro detekci 'model neexistuje / není dostupný'."""
         err_text = str(exc).lower()
         markers = (
             "not_found",
@@ -282,14 +271,11 @@ class AI(commands.Cog):
         return str(status_code) in {"429", "500", "502", "503", "504"}
 
     async def _generate_response(self, prompt: str) -> tuple[str, str, str]:
-        """Vygeneruje odpověď modelu.
-
-        Vrací trojici: `(text, finish_reason, used_model)`.
-        """
+        """Vygeneruje odpověď modelu."""
         if self._client is None:
             raise RuntimeError("GenAI client is not initialized.")
 
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         model = ai_cfg.get("model", "gemini-3.1-flash-lite")
         system_prompt = ai_cfg.get("system_prompt", "Jsi pomocník.")
         temperature = float(ai_cfg.get("temperature", 0.7))
@@ -297,20 +283,20 @@ class AI(commands.Cog):
         request_timeout = float(ai_cfg.get("request_timeout_seconds", 35))
         max_retries = int(ai_cfg.get("max_retries", 2))
         retry_backoff = float(ai_cfg.get("retry_backoff_seconds", 1.0))
-        
-        fallback_models = [m for m in ai_cfg.get("fallback_models", []) if isinstance(m, str) and m]
+
+        fallback_models = [
+            m for m in ai_cfg.get("fallback_models", []) if isinstance(m, str) and m
+        ]
         models_to_try = [model] + [m for m in fallback_models if m != model]
 
         def _run_call():
-            """Běží ve vlákně, protože SDK volání je synchronní (blokující)."""
-            last_exc = None
+            last_exc: Exception | None = None
             used_model = model
 
             for candidate_model in models_to_try:
                 used_model = candidate_model
                 for attempt in range(max_retries + 1):
                     try:
-                        # Osobnost patří do system_instruction, ne přímo do user promptu.
                         response = self._client.models.generate_content(
                             model=candidate_model,
                             contents=prompt,
@@ -327,18 +313,23 @@ class AI(commands.Cog):
                         last_exc = exc
 
                         if self._is_model_not_found_error(exc):
-                            # Tento model nedává smysl retryovat, zkusíme další fallback.
                             break
 
-                        should_retry = attempt < max_retries and self._is_transient_error(exc)
+                        should_retry = (
+                            attempt < max_retries and self._is_transient_error(exc)
+                        )
                         if should_retry:
-                            sleep_seconds = retry_backoff * (2 ** attempt)
+                            sleep_seconds = retry_backoff * (2**attempt)
                             time.sleep(max(0.0, sleep_seconds))
                             continue
 
                         raise
 
-            raise last_exc
+            # Pojistka pro Pyright: pokud vše selže, throw the last exception,
+            # nebo obecný error pokud by last_exc zůstalo prázdné
+            raise last_exc or RuntimeError(
+                "All fallback models failed without a specific error."
+            )
 
         try:
             text, finish_reason, used_model = await asyncio.wait_for(
@@ -346,10 +337,16 @@ class AI(commands.Cog):
                 timeout=request_timeout,
             )
         except asyncio.TimeoutError as exc:
-            raise TimeoutError(f"AI request timed out after {request_timeout:.1f}s") from exc
+            raise TimeoutError(
+                f"AI request timed out after {request_timeout:.1f}s"
+            ) from exc
 
         if used_model != model:
-            logger.warning("Configured AI model '%s' unavailable, used fallback '%s'.", model, used_model)
+            logger.warning(
+                "Configured AI model '%s' unavailable, used fallback '%s'.",
+                model,
+                used_model,
+            )
 
         return text, finish_reason, used_model
 
@@ -359,13 +356,13 @@ class AI(commands.Cog):
             await channel.send("Nepodařilo se vygenerovat odpověď.")
             return
 
-        chunks = [text[i:i + 1900] for i in range(0, len(text), 1900)]
+        chunks = [text[i : i + 1900] for i in range(0, len(text), 1900)]
         for chunk in chunks:
             await channel.send(chunk)
 
     def _message_is_ai_trigger(self, message: discord.Message) -> tuple[bool, str]:
         """Rozhodne, jestli má AI odpovědět, a vrátí i text pro prompt."""
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         content = (message.content or "").strip()
         if not content:
             return False, ""
@@ -383,8 +380,10 @@ class AI(commands.Cog):
         ):
             return True, content
 
-        auto_channel_ids = self._parse_channel_ids(ai_cfg.get("auto_reply_channels", []))
-                
+        auto_channel_ids = self._parse_channel_ids(
+            ai_cfg.get("auto_reply_channels", [])
+        )
+
         if message.channel.id in auto_channel_ids:
             chance = float(ai_cfg.get("auto_reply_chance", 0.2))
             if random.random() <= max(0.0, min(1.0, chance)):
@@ -395,16 +394,17 @@ class AI(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Hlavní listener pro automatické AI odpovědi na zprávy."""
+        # Bot a Webhook ochrana
         if message.author.bot:
             return
 
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         if not ai_cfg.get("enabled", False):
             return
 
-        # AI listener ignoruje globální `allowed_channels` z main.py a řídí se
-        # pouze `ai.allowed_channels`.
-        ai_allowed_channel_ids = self._parse_channel_ids(ai_cfg.get("allowed_channels", []))
+        ai_allowed_channel_ids = self._parse_channel_ids(
+            ai_cfg.get("allowed_channels", [])
+        )
         if ai_allowed_channel_ids and message.channel.id not in ai_allowed_channel_ids:
             return
 
@@ -426,7 +426,9 @@ class AI(commands.Cog):
 
         try:
             async with message.channel.typing():
-                answer, finish_reason, used_model = await self._generate_response(prompt)
+                answer, finish_reason, used_model = await self._generate_response(
+                    prompt
+                )
             await self._send_long_message(message.channel, answer)
             self._mark_responded(message.channel.id)
             if isinstance(message.channel, discord.abc.GuildChannel):
@@ -449,7 +451,7 @@ class AI(commands.Cog):
     @commands.command(name="ai_status")
     @commands.has_permissions(administrator=True)
     async def ai_status(self, ctx):
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         enabled = ai_cfg.get("enabled", False)
         allowed_channels = [str(ch) for ch in ai_cfg.get("allowed_channels", [])]
         auto_channels = [str(ch) for ch in ai_cfg.get("auto_reply_channels", [])]
@@ -466,12 +468,14 @@ class AI(commands.Cog):
     @commands.command(name="ai_on")
     @commands.has_permissions(administrator=True)
     async def ai_on(self, ctx):
-        self.bot.config.setdefault("ai", {})["enabled"] = True
+        self.config.setdefault("ai", {})["enabled"] = True
         self._save_config()
         self._init_client()
 
         if self._client is None:
-            await ctx.send("AI jsem zapnul v konfiguraci, ale chybí API klíč nebo knihovna `google-genai`.")
+            await ctx.send(
+                "AI jsem zapnul v konfiguraci, ale chybí API klíč nebo knihovna `google-genai`."
+            )
             return
 
         await ctx.send("AI odpovídání je zapnuté.")
@@ -479,14 +483,14 @@ class AI(commands.Cog):
     @commands.command(name="ai_off")
     @commands.has_permissions(administrator=True)
     async def ai_off(self, ctx):
-        self.bot.config.setdefault("ai", {})["enabled"] = False
+        self.config.setdefault("ai", {})["enabled"] = False
         self._save_config()
         await ctx.send("AI odpovídání je vypnuté.")
 
     @commands.command(name="ai_add_channel")
     @commands.has_permissions(administrator=True)
     async def ai_add_channel(self, ctx, channel: discord.TextChannel):
-        ai_cfg = self.bot.config.setdefault("ai", {})
+        ai_cfg = self.config.setdefault("ai", {})
         channel_ids = self._parse_channel_ids(ai_cfg.get("allowed_channels", []))
 
         if channel.id in channel_ids:
@@ -501,7 +505,7 @@ class AI(commands.Cog):
     @commands.command(name="ai_rem_channel")
     @commands.has_permissions(administrator=True)
     async def ai_rem_channel(self, ctx, channel: discord.TextChannel):
-        ai_cfg = self.bot.config.setdefault("ai", {})
+        ai_cfg = self.config.setdefault("ai", {})
         channel_ids = self._parse_channel_ids(ai_cfg.get("allowed_channels", []))
 
         if channel.id not in channel_ids:
@@ -515,24 +519,32 @@ class AI(commands.Cog):
 
     @commands.command(name="ai")
     async def ai_manual_prompt(self, ctx, *, prompt: str):
-        ai_cfg = self.bot.config.get("ai", {})
+        ai_cfg = self.config.get("ai", {})
         if not ai_cfg.get("enabled", False):
-            await ctx.send("AI je momentálně vypnuté. Admin může zapnout přes `!ai_on`.")
+            await ctx.send(
+                "AI je momentálně vypnuté. Admin může zapnout přes `!ai_on`."
+            )
             return
 
-        ai_allowed_channel_ids = self._parse_channel_ids(ai_cfg.get("allowed_channels", []))
+        ai_allowed_channel_ids = self._parse_channel_ids(
+            ai_cfg.get("allowed_channels", [])
+        )
         if ai_allowed_channel_ids and ctx.channel.id not in ai_allowed_channel_ids:
             await ctx.send("AI v tomto kanálu není povolené.")
             return
 
         if self._client is None:
-            await ctx.send("AI není inicializováno (zkontroluj `genai_token` nebo env `GOOGLE_API_KEY`).")
+            await ctx.send(
+                "AI není inicializováno (zkontroluj `genai_token` nebo env `GOOGLE_API_KEY`)."
+            )
             return
 
         full_prompt = await self._build_prompt(ctx.message, prompt)
         try:
             async with ctx.typing():
-                answer, finish_reason, used_model = await self._generate_response(full_prompt)
+                answer, finish_reason, used_model = await self._generate_response(
+                    full_prompt
+                )
             await self._send_long_message(ctx.channel, answer)
             if isinstance(ctx.channel, discord.abc.GuildChannel):
                 await self._log_finish_reason(

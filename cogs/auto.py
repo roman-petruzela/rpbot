@@ -38,7 +38,7 @@ class Auto(commands.Cog):
     @commands.command(name="set_auto_role")
     @commands.has_permissions(administrator=True)
     @commands.guild_only()
-    async def set_auto_role(self, ctx, role: discord.Role = None):
+    async def set_auto_role(self, ctx, role: discord.Role | None = None):
         me = ctx.guild.me
         if me is None:
             return await ctx.send("Kritická chyba: účet bota nebyl na serveru nalezen.")
