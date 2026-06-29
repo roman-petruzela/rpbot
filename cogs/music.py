@@ -1,6 +1,8 @@
 import asyncio
+import inspect
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import discord
 import yt_dlp
@@ -10,7 +12,9 @@ from discord.ext import commands
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.config = getattr(bot, "config", {})
+        self.ydl_options = getattr(bot, "ydl_options", {})
+        self.ffmpeg_options = getattr(bot, "ffmpeg_options", {})
+
         self.state_path = Path(__file__).resolve().parent.parent / "music_state.json"
         self.guild_queues = {}
         self.guild_now_playing = {}
@@ -20,7 +24,7 @@ class Music(commands.Cog):
         self._load_music_state()
 
     def _build_ydl_options(self) -> dict:
-        ydl_options = dict(self.config.get("ydl_options", {}))
+        ydl_options = dict(self.ydl_options)
 
         remote_components = ydl_options.get("remote_components")
         if isinstance(remote_components, str):
@@ -151,7 +155,7 @@ class Music(commands.Cog):
                 pass
 
         send_log = getattr(self.bot, "send_log", None)
-        if callable(send_log):
+        if send_log and inspect.iscoroutinefunction(send_log):
             await send_log(message)
 
     def _schedule_idle_disconnect(self, guild_id: int, vc: discord.VoiceClient):
@@ -206,7 +210,7 @@ class Music(commands.Cog):
 
         self.guild_alone_tasks[guild_id] = asyncio.create_task(_worker())
 
-    def _pick_stream_url(self, info: dict) -> str | None:
+    def _pick_stream_url(self, info: Any) -> str | None:
         direct_url = info.get("url")
         if isinstance(direct_url, str) and direct_url:
             return direct_url
@@ -229,7 +233,7 @@ class Music(commands.Cog):
         return None
 
     def _load_track_info(self, url: str, ydl_options: dict) -> tuple[str, str]:
-        with yt_dlp.YoutubeDL(ydl_options) as ydl:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_options)) as ydl:
             info = ydl.extract_info(url, download=False)
             if isinstance(info, dict) and info.get("entries"):
                 entries = [entry for entry in info.get("entries", []) if entry]
@@ -243,10 +247,10 @@ class Music(commands.Cog):
                 raise ValueError("yt-dlp returned unexpected info structure")
 
             stream_url = self._pick_stream_url(info)
-            if not stream_url:
+            if stream_url is None:
                 raise ValueError("No playable stream URL was found in extractor output")
 
-            title = info.get("title", "Neznámý název")
+            title = str(info.get("title", "Neznámý název"))
             return title, stream_url
 
     async def _resolve_track_stream(self, track: dict) -> dict:
@@ -275,7 +279,7 @@ class Music(commands.Cog):
         guild_id: int,
         track: dict,
     ):
-        ffmpeg_options = dict(self.config.get("ffmpeg_options", {}))
+        ffmpeg_options = dict(self.bot.config.get("ffmpeg_options", {}))
 
         before_opts = ffmpeg_options.get("before_options", "")
         if "-reconnect" not in before_opts:
@@ -290,7 +294,6 @@ class Music(commands.Cog):
         try:
             track = await self._resolve_track_stream(track)
 
-            # Zde je ta hlavní změna! Už nepředáváme "executable", bot použije systémový FFmpeg.
             source = discord.FFmpegPCMAudio(
                 source=track["stream_url"],
                 **ffmpeg_options,

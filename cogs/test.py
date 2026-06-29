@@ -1,5 +1,5 @@
-import discord
 from discord.ext import commands
+
 
 class Test(commands.Cog):
     def __init__(self, bot):
@@ -8,7 +8,7 @@ class Test(commands.Cog):
     @commands.command()
     async def test(self, ctx):
         await ctx.send("Vše funguje.")
-        
+
     @commands.command()
     async def join(self, ctx):
         await ctx.send("Připojuji se.")
@@ -34,6 +34,7 @@ class Test(commands.Cog):
             return
 
         await ctx.send("Už jsem v tomhle voice kanálu.")
+
 
 async def setup(bot):
     await bot.add_cog(Test(bot))

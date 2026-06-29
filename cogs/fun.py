@@ -1,8 +1,10 @@
+import asyncio
 import random
+from pathlib import Path
+
 import discord
 from discord.ext import commands
-import asyncio
-from pathlib import Path
+
 
 class Fun(commands.Cog):
     def __init__(self, bot):
@@ -10,18 +12,30 @@ class Fun(commands.Cog):
         self.content = getattr(bot, "content", {})
 
     def _quotes_path(self) -> Path:
-        return Path(__file__).resolve().parent.parent / "sources" / "text" / "quotes.txt"
+        return (
+            Path(__file__).resolve().parent.parent / "sources" / "text" / "quotes.txt"
+        )
 
     def _eight_ball_path(self) -> Path:
         return Path(__file__).resolve().parent.parent / "sources" / "text" / "8ball.txt"
 
     @commands.command()
     async def gragas_jumpscare(self, ctx, member: discord.Member):
-        """Easter egg - přehraje Gragas zvuk uživateli ve voice channelu"""
-        if not member.voice:
+        """přehraje Gragas zvuk uživateli ve voice channelu"""
+        if not member.voice or member.voice.channel is None:
             return await ctx.send(f"**{member.display_name}** není ve voice kanálu.")
 
         channel = member.voice.channel
+
+        if ctx.guild is None or ctx.guild.me is None:
+            return
+
+        permissions = channel.permissions_for(ctx.guild.me)
+        if not permissions.connect:
+            return await ctx.send("Nemám oprávnění připojit se do tohoto voice kanálu.")
+        if not permissions.speak:
+            return await ctx.send("Nemám oprávnění mluvit v tomto voice kanálu.")
+
         vc = ctx.voice_client
 
         try:
@@ -32,49 +46,68 @@ class Fun(commands.Cog):
         except (discord.ClientException, asyncio.TimeoutError, discord.HTTPException):
             return await ctx.send("Do tohoto voice kanálu se nepodařilo připojit.")
 
-        await asyncio.sleep(1)  # Krátká pauza, aby se bot správně připojil
+        await asyncio.sleep(1)
 
-        gragas_audio_path = self.content.get("gragas_audio_path", "sources/audio/gragas.ogg")
-        source = discord.FFmpegPCMAudio(executable="ffmpeg", source=gragas_audio_path)
-        
+        gragas_audio_path = self.content.get(
+            "gragas_audio_path", "sources/audio/gragas.ogg"
+        )
+
+        source = discord.FFmpegPCMAudio(source=gragas_audio_path)
+
+        if vc is None:
+            return
         if vc.is_playing():
             return await ctx.send("V tomto voice kanálu už něco přehrávám.")
-
         vc.play(source)
         while vc.is_playing():
             await asyncio.sleep(1)
-        
         await vc.disconnect()
-        
+
     @commands.command()
     async def pero(self, ctx):
         """Fun command"""
         await ctx.send(f"Tvoje velikost je {random.randint(1, 30)} cm")
-        
+
     @commands.command()
     async def mince(self, ctx):
         vysledek = random.choice(["Orel", "Panna"])
         await ctx.send(f"**{vysledek}**")
-        
-    @commands.command()
-    async def random(self, ctx, cislo1: int = None, cislo2: int = None):
+
+    @commands.command(name="random")
+    async def random_number(self, ctx, cislo1, cislo2):
         """Vyber náhodnou možnost ze zadaných"""
+        c1: int
+        c2: int
+
         if cislo1 is None and cislo2 is None:
-            minimum, maximum = 0, 100
-        minimum, maximum = sorted((cislo1, cislo2))
+            c1, c2 = 0, 100
+        elif cislo2 is None:
+            c1 = 0
+            c2 = cislo1 if cislo1 is not None else 100
+        elif cislo1 is None:
+            c1 = 0
+            c2 = cislo2
+        else:
+            c1 = cislo1
+            c2 = cislo2
+
+        minimum = min(c1, c2)
+        maximum = max(c1, c2)
 
         choice = random.randint(minimum, maximum)
         await ctx.send(f"Padlo číslo: **{choice}**")
 
     @commands.group(invoke_without_command=True)
     async def quote(self, ctx):
-        await ctx.send("Použití: `!quote add \"Hláška\" - @Uživatel` nebo `!quote random`")
+        await ctx.send(
+            'Použití: `!quote add "Hláška" - @Uživatel` nebo `!quote random`'
+        )
 
     @quote.command(name="add")
     async def quote_add(self, ctx, *, payload: str):
         raw = (payload or "").strip()
         if not raw:
-            return await ctx.send("Použití: `!quote add \"Hláška\" - @Uživatel`")
+            return await ctx.send('Použití: `!quote add "Hláška" - @Uživatel`')
 
         if " - " in raw:
             quote_text, author_text = raw.split(" - ", 1)
@@ -106,7 +139,7 @@ class Fun(commands.Cog):
         if not quotes:
             return await ctx.send("Zatím není uložená žádná hláška.")
 
-        await ctx.send(f"Legendy praví: \"{random.choice(quotes)}\"")
+        await ctx.send(f'Legendy praví: "{random.choice(quotes)}"')
 
     @commands.command(name="8ball")
     async def eight_ball(self, ctx, *, otazka: str):
@@ -118,7 +151,9 @@ class Fun(commands.Cog):
             return await ctx.send("Soubor s odpověďmi pro 8ball neexistuje.")
 
         with open(eight_ball_path, "r", encoding="utf-8") as eight_ball_file:
-            answers = [line.strip() for line in eight_ball_file.readlines() if line.strip()]
+            answers = [
+                line.strip() for line in eight_ball_file.readlines() if line.strip()
+            ]
 
         if not answers:
             return await ctx.send("Soubor `8ball.txt` je prázdný.")
