@@ -63,7 +63,7 @@ async def on_ready():
         return
     logger.info("Logged in as: %s", bot.user)
     logger.info("Bot ID: %s", bot.user.id)
-    logger.info("------")
+    logger.info("------------------------------------------------------------")
     await send_log(f"Bot je online jako **{bot.user}** (ID: `{bot.user.id}`).")
 
 
