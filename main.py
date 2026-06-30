@@ -69,9 +69,7 @@ async def on_ready():
 
 @bot.event
 async def on_command(ctx):
-    await send_log(
-        f"Příkaz `{ctx.command}` použil **{ctx.author}** v {ctx.channel.mention}."
-    )
+    await send_log(f"Příkaz `{ctx.command}` použil **{ctx.author}** v {ctx.channel.mention}.")  # fmt:skip
 
 
 @bot.event
@@ -103,23 +101,17 @@ async def on_message(message):
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("Tento příkaz je určen pouze administrátorům.")
-        await send_log(
-            f"Nedostatečná oprávnění: **{ctx.author}** zkusil `{ctx.command}` v {ctx.channel.mention}."
-        )
+        await send_log(f"Nedostatečná oprávnění: **{ctx.author}** zkusil `{ctx.command}` v {ctx.channel.mention}.")  # fmt:skip
     elif isinstance(error, commands.NoPrivateMessage):
         await ctx.send("Tento příkaz nelze použít v soukromých zprávách.")
         await send_log(f"Zablokovaný DM příkaz `{ctx.command}` od **{ctx.author}**.")
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("Neplatný kanál.")
-        await send_log(
-            f"Neplatný argument kanálu v `{ctx.command}` od **{ctx.author}**."
-        )
+        await send_log(f"Neplatný argument kanálu v `{ctx.command}` od **{ctx.author}**.")  # fmt:skip
     elif isinstance(error, commands.CommandNotFound):
         pass
     else:
-        await send_log(
-            f"Nezachycená chyba v `{ctx.command}` od **{ctx.author}**: `{error}`"
-        )
+        await send_log(f"Nezachycená chyba v `{ctx.command}` od **{ctx.author}**: `{error}`")  # fmt:skip
         raise error
 
 
