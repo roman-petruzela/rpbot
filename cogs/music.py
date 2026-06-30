@@ -8,12 +8,14 @@ import discord
 import yt_dlp
 from discord.ext import commands
 
+from config_manager import CONFIG
+
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.ydl_options = getattr(bot, "ydl_options", {})
-        self.ffmpeg_options = getattr(bot, "ffmpeg_options", {})
+        self.ydl_options = CONFIG.get("ydl_options", {})
+        self.ffmpeg_options = CONFIG.get("ffmpeg_options", {})
 
         self.state_path = Path(__file__).resolve().parent.parent / "music_state.json"
         self.guild_queues = {}
@@ -24,40 +26,22 @@ class Music(commands.Cog):
         self._load_music_state()
 
     def _build_ydl_options(self) -> dict:
-        ydl_options = dict(self.ydl_options)
-
-        remote_components = ydl_options.get("remote_components")
-        if isinstance(remote_components, str):
-            component = remote_components.strip()
-            if component in {"github", "npm"}:
-                component = f"ejs:{component}"
-            ydl_options["remote_components"] = [component]
-        elif isinstance(remote_components, list):
-            normalized_components = []
-            for component in remote_components:
-                if not isinstance(component, str):
-                    continue
-                clean = component.strip()
-                if clean in {"github", "npm"}:
-                    clean = f"ejs:{clean}"
-                normalized_components.append(clean)
-            if normalized_components:
-                ydl_options["remote_components"] = normalized_components
-
-        js_runtimes = ydl_options.get("js_runtimes")
+        js_runtimes = self.ydl_options.get("js_runtimes")
         if isinstance(js_runtimes, str):
             runtimes_list = [
                 runtime.strip() for runtime in js_runtimes.split(",") if runtime.strip()
             ]
-            ydl_options["js_runtimes"] = {runtime: {} for runtime in runtimes_list}
+            self.ydl_options["js_runtimes"] = {runtime: {} for runtime in runtimes_list}
         elif isinstance(js_runtimes, list):
-            ydl_options["js_runtimes"] = {
+            self.ydl_options["js_runtimes"] = {
                 runtime: {} for runtime in js_runtimes if isinstance(runtime, str)
             }
-        elif not isinstance(js_runtimes, dict) or not js_runtimes:
-            ydl_options["js_runtimes"] = {"node": {}, "deno": {}}
+        elif isinstance(js_runtimes, dict) and js_runtimes:
+            self.ydl_options["js_runtimes"] = js_runtimes
+        else:
+            self.ydl_options["js_runtimes"] = {"deno": {}, "node": {}}
 
-        return ydl_options
+        return self.ydl_options
 
     def _get_guild_queue(self, guild_id: int):
         return self.guild_queues.setdefault(guild_id, [])
@@ -279,7 +263,7 @@ class Music(commands.Cog):
         guild_id: int,
         track: dict,
     ):
-        ffmpeg_options = dict(self.bot.config.get("ffmpeg_options", {}))
+        ffmpeg_options = dict(CONFIG.get("ffmpeg_options", {}))
 
         before_opts = ffmpeg_options.get("before_options", "")
         if "-reconnect" not in before_opts:
@@ -533,7 +517,6 @@ class Music(commands.Cog):
             self._cancel_alone_task(guild.id)
             return
 
-        # Ignore unrelated channel changes.
         if before.channel != vc.channel and after.channel != vc.channel:
             return
 

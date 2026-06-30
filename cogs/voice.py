@@ -3,6 +3,8 @@ import inspect
 import discord
 from discord.ext import commands
 
+from config_manager import CONFIG
+
 
 class Voice(commands.Cog):
     def __init__(self, bot):
@@ -13,7 +15,7 @@ class Voice(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        trigger_id = int(self.bot.config.get("voice_trigger_id", 0) or 0)
+        trigger_id = int(CONFIG.get("voice_trigger_id", 0) or 0)
         if trigger_id == 0:
             return
 
@@ -34,9 +36,7 @@ class Voice(commands.Cog):
 
     async def create_temp_channel(self, member, category):
         guild = member.guild
-        channel_name = self.bot.config.get(
-            "voice_default_name", "{member.display_name} roomka"
-        )
+        channel_name = CONFIG.get("voice_default_name", "{member.display_name} roomka")
         channel_name = channel_name.format(member=member)
         try:
             overwrites = {
@@ -87,7 +87,7 @@ class Voice(commands.Cog):
         if before.channel == after.channel:
             return
 
-        trigger_id = int(self.bot.config.get("voice_trigger_id", 0) or 0)
+        trigger_id = int(CONFIG.get("voice_trigger_id", 0) or 0)
         if trigger_id == 0:
             return
 
