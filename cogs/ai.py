@@ -100,16 +100,10 @@ class AI(commands.Cog):
         return channel_ids
 
     def _load_api_key(self) -> str | None:
-        """Načte API klíč z env proměnných nebo souboru `genai_token`."""
+        """Načte API klíč z env proměnných."""
         env_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         if env_key:
             return env_key.strip()
-
-        key_file = Path(__file__).resolve().parent.parent / "genai_token"
-        if key_file.exists():
-            value = key_file.read_text(encoding="utf-8").strip()
-            if value:
-                return value
 
         return None
 
@@ -121,9 +115,7 @@ class AI(commands.Cog):
 
         api_key = self._load_api_key()
         if not api_key:
-            logger.warning(
-                "No GenAI API key found (GOOGLE_API_KEY/GEMINI_API_KEY/genai_token)."
-            )
+            logger.warning("No GenAI API key found.")
             return
 
         try:
@@ -534,9 +526,7 @@ class AI(commands.Cog):
             return
 
         if self._client is None:
-            await ctx.send(
-                "AI není inicializováno (zkontroluj `genai_token` nebo env `GOOGLE_API_KEY`)."
-            )
+            await ctx.send("AI není inicializováno (zkontroluj env `GOOGLE_API_KEY`).")
             return
 
         full_prompt = await self._build_prompt(ctx.message, prompt)
