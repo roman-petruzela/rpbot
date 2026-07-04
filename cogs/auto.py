@@ -4,9 +4,11 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
+from main import RPBot
+
 
 class Auto(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: RPBot):
         self.bot = bot
 
     def _save_config(self):
@@ -17,7 +19,11 @@ class Auto(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         guild = member.guild
-        me = guild.me or guild.get_member(self.bot.user.id)
+        bot_user = self.bot.user
+        if bot_user is None:
+            return
+
+        me = guild.me or guild.get_member(bot_user.id)
         role_id = int(getattr(self.bot, "config", {}).get("auto_role_id", 0) or 0)
 
         if me is None or not me.guild_permissions.manage_roles or role_id == 0:

@@ -13,6 +13,9 @@ from typing import Any
 import discord
 from discord.ext import commands
 
+from config_manager import CONFIG
+from main import RPBot
+
 try:
     from google import genai
 except ImportError:
@@ -22,11 +25,10 @@ logger = logging.getLogger("rpbot.ai")
 
 
 class AI(commands.Cog):
-    def __init__(self, bot):
-        """Inicializace cogu."""
+    def __init__(self, bot: RPBot):
         self.bot = bot
         # Sjednotíme config rovnou do třídy, aby Pyright neřval na self.bot.config
-        self.config: dict[str, Any] = getattr(bot, "config", {})
+        self.config: dict[str, Any] = getattr(bot, "config", CONFIG)
 
         self._client: Any = None
         # Typově ošetřený slovník pro rate-limity (id_kanalu: timestamp_v_sekundach)

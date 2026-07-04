@@ -5,9 +5,11 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
+from main import RPBot
+
 
 class Fun(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: RPBot):
         self.bot = bot
         self.content = getattr(bot, "content", {})
 

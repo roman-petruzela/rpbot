@@ -4,14 +4,15 @@ import discord
 from discord.ext import commands
 
 from config_manager import CONFIG
+from main import RPBot
 
 
 class Voice(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: RPBot):
         self.bot = bot
 
         if not hasattr(self.bot, "temp_voice_channel_ids"):
-            self.bot.temp_voice_channel_ids = set()
+            self.temp_channels = set()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -52,7 +53,7 @@ class Voice(commands.Cog):
                 category=category,
                 overwrites=overwrites,
             )
-            self.bot.temp_voice_channel_ids.add(new_channel.id)
+            self.temp_channels.add(new_channel.id)
             if member != self.bot.user:
                 await member.move_to(new_channel)
             send_log = getattr(self.bot, "send_log", None)
@@ -91,12 +92,12 @@ class Voice(commands.Cog):
         if trigger_id == 0:
             return
 
-        if before.channel and before.channel.id in self.bot.temp_voice_channel_ids:
+        if before.channel and before.channel.id in self.temp_channels:
             if len(before.channel.members) == 0:
                 channel_name_log = before.channel.name
                 try:
                     await before.channel.delete()
-                    self.bot.temp_voice_channel_ids.discard(before.channel.id)
+                    self.temp_channels.discard(before.channel.id)
                     send_log = getattr(self.bot, "send_log", None)
                     if send_log and inspect.iscoroutinefunction(send_log):
                         await send_log(

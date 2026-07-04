@@ -3,13 +3,13 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import cast
+from typing import Any, Awaitable, Callable, cast
 
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from config_manager import ALLOWED_CHANNEL_IDS, CONFIG
+from config_manager import ALLOWED_CHANNEL_IDS, CONFIG, CONTENT
 
 load_dotenv()
 
@@ -28,7 +28,17 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+
+class RPBot(commands.Bot):
+    config: dict[str, Any]
+    content: dict[str, Any]
+    send_log: Callable[[str], Awaitable[None]]
+
+
+bot = RPBot(command_prefix=COMMAND_PREFIX, intents=intents)
+
+bot.config = CONFIG
+bot.content = CONTENT
 
 
 async def send_log(message: str):
@@ -55,6 +65,9 @@ async def send_log(message: str):
             await channel.send(message)
         except (discord.Forbidden, discord.HTTPException):
             logger.warning("Unable to send message to log channel: %s", channel_id)
+
+
+bot.send_log = send_log
 
 
 @bot.event

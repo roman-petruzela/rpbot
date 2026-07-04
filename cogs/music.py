@@ -9,10 +9,11 @@ import yt_dlp
 from discord.ext import commands
 
 from config_manager import CONFIG
+from main import RPBot
 
 
 class Music(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: RPBot):
         self.bot = bot
         self.ydl_options = CONFIG.get("ydl_options", {})
         self.ffmpeg_options = CONFIG.get("ffmpeg_options", {})

@@ -5,10 +5,11 @@ import discord
 from discord.ext import commands
 
 from config_manager import ALLOWED_CHANNEL_IDS, CONFIG, CONTENT, save_config
+from main import RPBot
 
 
 class Admin(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: RPBot):
         self.bot = bot
 
     @commands.command()
