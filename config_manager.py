@@ -1,8 +1,11 @@
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 logger = logging.getLogger("rpbot")
+CONFIG_PATH = Path(__file__).parent / "config.json"
 
 
 def parse_channel_ids(raw_channels) -> set[int]:
@@ -25,7 +28,8 @@ def validate_config(config: dict) -> dict:
     command_prefix = validated.get("command_prefix", "!")
     if not isinstance(command_prefix, str) or not command_prefix.strip():
         logger.warning("Invalid command_prefix in config; falling back to '!'.")
-        validated["command_prefix"] = "!"
+        command_prefix = "!"
+    validated["command_prefix"] = command_prefix
 
     allowed_channels = validated.get("allowed_channels", [])
     if not isinstance(allowed_channels, (list, int)):
@@ -44,10 +48,18 @@ def validate_config(config: dict) -> dict:
     return validated
 
 
+def _load_json_file(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return data if isinstance(data, dict) else {}
+
+
 def _load_raw_config() -> dict:
-    config_path = Path(__file__).parent / "config.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        return _load_json_file(CONFIG_PATH)
+    except Exception as e:
+        logger.warning("Nepodařilo se načíst config.json: %s", e)
+        return {}
 
 
 def load_content() -> dict:
@@ -57,13 +69,23 @@ def load_content() -> dict:
 
 
 def save_config() -> None:
-    config_path = Path(__file__).parent / "config.json"
-
     CONFIG["allowed_channels"] = sorted(list(ALLOWED_CHANNEL_IDS))
 
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(CONFIG, f, indent=4, ensure_ascii=False)
+        config_dir = CONFIG_PATH.parent
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=config_dir,
+            delete=False,
+            prefix="config.",
+            suffix=".tmp",
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            json.dump(CONFIG, temp_file, indent=4, ensure_ascii=False)
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        os.replace(temp_path, CONFIG_PATH)
     except Exception as e:
         logger.error("Nepodařilo se uložit config.json: %s", e)
 

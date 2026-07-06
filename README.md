@@ -11,9 +11,8 @@ A lightweight Discord bot written in Python using `discord.py` with a modular Co
 ## Project Structure
 - `main.py` – bot entry point, config/content loading, event handlers, cog loading.
 - `cogs/` – command modules (`admin.py`, `music.py`, `fun.py`, `test.py`).
-- `config.json` – command prefix, allowed channels, yt-dlp/ffmpeg options.
+- `config.json` – jediný konfigurační soubor bota (lokální, necommitovaný).
 - `content.json` – text content and file paths used by commands.
-- `token` – Discord bot token (plain text, one line).
 - `sources/` – static media files (audio and images).
 
 ## Requirements
@@ -24,15 +23,19 @@ A lightweight Discord bot written in Python using `discord.py` with a modular Co
 
 ## Run
 1. Install dependencies (for example): `pip install discord.py yt-dlp`
-2. Put your Discord bot token into the `token` file in project root
+2. Put your Discord bot token into `.env` as `DISCORD_TOKEN=...`
 3. Start the bot: `python main.py`
 
 ## AI Setup (Gemini / GenAI)
 1. Install all dependencies from file: `pip install -r requirements.txt`
 2. Add Gemini API key:
-	 - environment variable `GOOGLE_API_KEY` (or `GEMINI_API_KEY`), or
-	 - file `genai_token` in project root (one line with API key)
+	 - environment variable `GOOGLE_API_KEY` (or `GEMINI_API_KEY`)
 3. Start bot and enable AI command: `!ai_on`
+
+## Config workflow
+- Používej pouze `config.json`.
+- Soubor je v `.gitignore`, takže se nepushne na GitHub.
+- Runtime/admin změny se ukládají přímo do `config.json`.
 
 ### AI Behavior
 - Bot replies when mentioned (`@bot`) and when user replies to bot message.
