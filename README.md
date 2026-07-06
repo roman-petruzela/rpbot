@@ -18,6 +18,15 @@ A Discord bot written in Python, built on top of `discord.py` with a modular Cog
 - `ffmpeg` (must be available in PATH)
 - `google-genai` (only for AI features)
 
+## Prerequisites & Discord Intents
+
+**Important:** This bot requires **Privileged Intents** to be enabled in the Discord Developer Portal. Before running the bot, navigate to your Bot settings on the developer portal and toggle **ON** the following:
+- **Presence Intent**
+- **Server Members Intent** (required for `!roleall`)
+- **Message Content Intent** (required for prefix commands and AI replies)
+
+Without these intents, the bot will not respond to commands or function properly.
+
 ## Installation
 
 1. Clone the repository.
@@ -40,53 +49,9 @@ DISCORD_TOKEN=your_discord_bot_token
 
 5. Create `config.json` in the project root (this file is local and ignored by git).
 
-## Configuration (`config.json`)
+## Configuration
 
 The bot uses a single configuration file: `config.json`.
-
-Recommended minimal template:
-
-```json
-{
-  "command_prefix": "!",
-  "auto_role_id": "",
-  "allowed_channels": [],
-  "ydl_options": {
-    "format": "bestaudio[abr<=96]/bestaudio/best",
-    "remote_components": ["ejs:github"],
-    "js_runtimes": {
-      "deno": {},
-      "node": {}
-    },
-    "noplaylist": true,
-    "quiet": true
-  },
-  "ffmpeg_options": {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-    "options": "-vn -loglevel quiet"
-  },
-  "ffmpeg_executable": "ffmpeg",
-  "voice_trigger_id": null,
-  "voice_default_name": "voice - {member.display_name}",
-  "log_channel_id": null,
-  "ai": {
-    "enabled": false,
-    "model": "gemini-3.1-flash-lite-preview",
-    "fallback_models": ["gemini-2.5-flash"],
-    "temperature": 0.7,
-    "max_output_tokens": 500,
-    "system_prompt": "You are a friendly Discord bot. Keep responses concise and useful.",
-    "respond_when_mentioned": true,
-    "respond_when_replied": true,
-    "history_window_hours": 12,
-    "history_message_limit": 50,
-    "allowed_channels": [],
-    "auto_reply_channels": [],
-    "auto_reply_chance": 0.2,
-    "min_response_interval_seconds": 6
-  }
-}
-```
 
 ### Configuration Notes
 

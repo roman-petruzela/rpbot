@@ -1,0 +1,39 @@
+{
+  "command_prefix": "!",
+  "auto_role_id": "",
+  "allowed_channels": [],
+  "ydl_options": {
+    "format": "bestaudio[abr<=96]/bestaudio/best",
+    "remote_components": ["ejs:github"],
+    "js_runtimes": {
+      "deno": {},
+      "node": {}
+    },
+    "noplaylist": true,
+    "quiet": true
+  },
+  "ffmpeg_options": {
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "options": "-vn -loglevel quiet"
+  },
+  "ffmpeg_executable": "ffmpeg",
+  "voice_trigger_id": null,
+  "voice_default_name": "voice - {member.display_name}",
+  "log_channel_id": null,
+  "ai": {
+    "enabled": false,
+    "model": "gemini-3.1-flash-lite-preview",
+    "fallback_models": ["gemini-2.5-flash"],
+    "temperature": 0.7,
+    "max_output_tokens": 500,
+    "system_prompt": "You are a friendly Discord bot. Keep responses concise and useful.",
+    "respond_when_mentioned": true,
+    "respond_when_replied": true,
+    "history_window_hours": 12,
+    "history_message_limit": 50,
+    "allowed_channels": [],
+    "auto_reply_channels": [],
+    "auto_reply_chance": 0.2,
+    "min_response_interval_seconds": 6
+  }
+}
