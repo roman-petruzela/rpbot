@@ -1,148 +1,189 @@
-# rpbot
+# RPBot
 
-A lightweight Discord bot written in Python using `discord.py` with a modular Cog-based structure.
+A Discord bot written in Python, built on top of `discord.py` with a modular Cog architecture.
 
 ## Features
-- **Admin commands**: send server rules, bulk-assign roles, manage allowed text channels.
-- **Music commands**: play audio from YouTube URLs, stop, and skip.
-- **Fun commands**: meme/sound effects and small random commands.
-- **AI chat replies (GenAI)**: optional Gemini integration for message replies in chat.
 
-## Project Structure
-- `main.py` – bot entry point, config/content loading, event handlers, cog loading.
-- `cogs/` – command modules (`admin.py`, `music.py`, `fun.py`, `test.py`).
-- `config.json` – jediný konfigurační soubor bota (lokální, necommitovaný).
-- `content.json` – text content and file paths used by commands.
-- `sources/` – static media files (audio and images).
+- Server administration (rules, bulk role assignment, allowed text channels, log channel)
+- YouTube music playback via `yt-dlp` + `ffmpeg` (queue, skip, pause, persisted queue)
+- Fun commands (random, coin flip, quotes, 8ball, audio meme)
+- Automatic temporary voice rooms + basic voice moderation
+- Optional AI replies via Google GenAI
 
-## Requirements
+## Tech Stack
+
 - Python 3.10+
 - `discord.py`
 - `yt-dlp`
-- `ffmpeg` available in system PATH
+- `ffmpeg` (must be available in PATH)
+- `google-genai` (only for AI features)
+
+## Installation
+
+1. Clone the repository.
+2. Create and activate a virtual environment.
+3. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Create a `.env` file in the project root:
+
+```env
+DISCORD_TOKEN=your_discord_bot_token
+# optional for AI:
+# GOOGLE_API_KEY=your_google_api_key
+# or
+# GEMINI_API_KEY=your_google_api_key
+```
+
+5. Create `config.json` in the project root (this file is local and ignored by git).
+
+## Configuration (`config.json`)
+
+The bot uses a single configuration file: `config.json`.
+
+Recommended minimal template:
+
+```json
+{
+  "command_prefix": "!",
+  "auto_role_id": "",
+  "allowed_channels": [],
+  "ydl_options": {
+    "format": "bestaudio[abr<=96]/bestaudio/best",
+    "remote_components": ["ejs:github"],
+    "js_runtimes": {
+      "deno": {},
+      "node": {}
+    },
+    "noplaylist": true,
+    "quiet": true
+  },
+  "ffmpeg_options": {
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "options": "-vn -loglevel quiet"
+  },
+  "ffmpeg_executable": "ffmpeg",
+  "voice_trigger_id": null,
+  "voice_default_name": "voice - {member.display_name}",
+  "log_channel_id": null,
+  "ai": {
+    "enabled": false,
+    "model": "gemini-3.1-flash-lite-preview",
+    "fallback_models": ["gemini-2.5-flash"],
+    "temperature": 0.7,
+    "max_output_tokens": 500,
+    "system_prompt": "You are a friendly Discord bot. Keep responses concise and useful.",
+    "respond_when_mentioned": true,
+    "respond_when_replied": true,
+    "history_window_hours": 12,
+    "history_message_limit": 50,
+    "allowed_channels": [],
+    "auto_reply_channels": [],
+    "auto_reply_chance": 0.2,
+    "min_response_interval_seconds": 6
+  }
+}
+```
+
+### Configuration Notes
+
+- `allowed_channels: []` means commands are allowed in all channels.
+- Set `voice_trigger_id` to the voice channel ID that should create temporary rooms.
+- Set `log_channel_id` to a text channel for internal bot logs.
+- Restrict AI replies with `ai.allowed_channels` if needed.
 
 ## Run
-1. Install dependencies (for example): `pip install discord.py yt-dlp`
-2. Put your Discord bot token into `.env` as `DISCORD_TOKEN=...`
-3. Start the bot: `python main.py`
 
-## AI Setup (Gemini / GenAI)
-1. Install all dependencies from file: `pip install -r requirements.txt`
-2. Add Gemini API key:
-	 - environment variable `GOOGLE_API_KEY` (or `GEMINI_API_KEY`)
-3. Start bot and enable AI command: `!ai_on`
+```bash
+python main.py
+```
 
-## Config workflow
-- Používej pouze `config.json`.
-- Soubor je v `.gitignore`, takže se nepushne na GitHub.
-- Runtime/admin změny se ukládají přímo do `config.json`.
+## Commands
 
-### AI Behavior
-- Bot replies when mentioned (`@bot`) and when user replies to bot message.
-- AI reacts only in channels listed in `ai.allowed_channels`.
-- Optional random auto-reply can be enabled via `ai.auto_reply_channels` and `ai.auto_reply_chance`.
-- Status command: `!ai_status`
-- Manual generation command: `!ai <text>`
+The prefix is loaded from `config.json` (`command_prefix`). Examples below use `!`.
 
-### AI Config Keys (`config.json`)
-- `ai.enabled`: global switch for AI replies
-- `ai.model`: model name (default `gemini-2.5-flash`)
-- `ai.system_prompt`: style/persona of bot responses
-- `ai.allowed_channels`: where AI replies are allowed (`[]` = all channels)
-- `ai.auto_reply_channels`: channel IDs for random auto replies
-- `ai.auto_reply_chance`: 0.0 to 1.0 probability in auto-reply channels
-- `ai.history_window_hours`: how many hours back AI can read chat history for context
-- `ai.history_message_limit`: max number of history messages loaded into context
+### Core
 
+- `!status` — bot runtime info
+- `!restart` — restart process (admin)
+- `!end` — shut down bot (admin)
 
-## Command List and Usage
-Command prefix is loaded from `config.json` (`command_prefix`). In examples below, prefix is `!`.
+### Admin
 
-### Core (`main.py`)
-- `!restart`
-	Restarts the bot process. Administrator only.
-- `!end`
-	Shuts the bot down. Administrator only.
-- `!status`
-	Shows a compact runtime/status overview for debugging.
+- `!pravidla` — sends rules from `content.json` (admin)
+- `!roleall @Role` — assigns a role to all non-bot members (admin)
+- `!add_channel #channel` — adds a text channel to allowlist (admin)
+- `!rem_channel #channel` — removes a text channel from allowlist (admin)
+- `!log [#channel]` — sets log channel (admin)
 
-### Admin (`cogs/admin.py`)
-- `!pravidla`
-	Sends server rules content from `content.json`. Administrator only.
-- `!roleall @Role`
-	Bulk-assigns a role to all non-bot members (with role hierarchy checks). Administrator only.
-- `!add_channel #channel`
-	Adds a text channel to global command allowlist (`allowed_channels`). Administrator only.
-- `!rem_channel #channel`
-	Removes a text channel from global command allowlist (`allowed_channels`). Administrator only.
-- `!log`
-	Sets current channel as bot log channel. Administrator only.
-- `!log #channel`
-	Sets selected channel as bot log channel. Administrator only.
+### Auto Role
 
-### Auto Role (`cogs/auto.py`)
-- `!set_auto_role`
-	Shows currently configured auto role.
-- `!set_auto_role @Role`
-	Sets auto role for new members. Administrator only.
+- `!set_auto_role` — shows current auto role
+- `!set_auto_role @Role` — sets auto role for new members (admin)
 
-### Music (`cogs/music.py`)
-- `!play <YouTube_URL>`
-	Joins your voice channel and plays audio from the URL. If something is already playing, song is added to queue.
-- `!queue`
-	Shows currently playing track and upcoming queue.
-- `!nowplaying` / `!np`
-	Shows detailed information about the current track.
-- `!pause`
-	Pauses currently playing song.
-- `!stop`
-	Stops playback, clears queue, and disconnects bot from voice.
-- `!skip`
-	Skips currently playing (or paused) audio and continues with next track from queue.
+### Music
 
-### Music Notes
-- The music queue is persisted in `music_state.json` so queued tracks survive a bot restart.
+- `!play <YouTube_URL>` — play or queue a track
+- `!queue` — show current queue
+- `!nowplaying` / `!np` — show currently playing track
+- `!pause` — pause playback
+- `!skip` — skip current track
+- `!stop` — stop, disconnect, clear queue
+- `!music` — music cog status/debug output
 
-### Fun (`cogs/fun.py`)
+### Fun
+
 - `!gragas_jumpscare @member`
-	Joins member's voice channel and plays the configured Gragas sound.
 - `!pero`
-	Sends a random joke size value.
 - `!mince`
-	Coin toss (`Orel`/`Panna`).
-- `!random`
-	Random number from `0` to `100`.
-- `!random <max>`
-	Random number from `0` to `<max>`.
-- `!random <min> <max>`
-	Random number between `<min>` and `<max>` (order does not matter).
-- `!quote add "Hláška" - @Uživatel`
-	Adds quote to `sources/text/quotes.txt`.
+- `!random [max]` / `!random <min> <max>`
+- `!quote add "Text" - @User`
 - `!quote random`
-	Shows random quote from `sources/text/quotes.txt`.
-- `!8ball <otázka>`
-	Shows random answer from `sources/text/8ball.txt`.
+- `!8ball <question>`
 
-### Voice Moderation (`cogs/voice.py`)
-- `!deny @member`
-	Toggles member connect permission in your current voice channel.
+### Voice
 
-### AI (`cogs/ai.py`)
-- `!ai_status`
-	Shows AI status, model, AI allowed channels and auto-reply channels. Administrator only.
-- `!ai_on`
-	Enables AI in config and initializes AI client. Administrator only.
-- `!ai_off`
-	Disables AI in config. Administrator only.
-- `!ai_add_channel #channel`
-	Adds channel to `ai.allowed_channels` (where AI is allowed to respond). Administrator only.
-- `!ai_rem_channel #channel`
-	Removes channel from `ai.allowed_channels`. Administrator only.
-- `!ai <text>`
-	Manual AI prompt in chat.
+- `!deny @member` — toggle member access to your current voice channel
+- `!lock` — lock/unlock current voice channel for `@everyone`
 
-### Test (`cogs/test.py`)
-- `!test`
-	Basic test response.
-- `!join`
-	Test command for joining/moving voice channel.
+### AI
+
+- `!ai_status` — AI status (admin)
+- `!ai_on` / `!ai_off` — enable/disable AI (admin)
+- `!ai_add_channel #channel` / `!ai_rem_channel #channel` (admin)
+- `!ai <text>` — manual AI prompt
+
+## Project Structure
+
+```text
+.
+├── main.py
+├── config_manager.py
+├── content.json
+├── cogs/
+│   ├── admin.py
+│   ├── ai.py
+│   ├── auto.py
+│   ├── fun.py
+│   ├── music.py
+│   ├── voice.py
+│   └── test.py
+└── sources/
+    ├── audio/
+    ├── pictures/
+    └── text/
+```
+
+## Runtime Data
+
+- `music_state.json` is generated at runtime and stores the persisted music queue.
+
+## Troubleshooting
+
+- **Bot does not start:** verify `DISCORD_TOKEN` in `.env`.
+- **Voice does not work:** verify `ffmpeg` in PATH and that `PyNaCl` is installed.
+- **AI does not respond:** verify `GOOGLE_API_KEY`/`GEMINI_API_KEY` and `ai.enabled`.
+- **Commands do not work in a channel:** check `allowed_channels` in `config.json`.
