@@ -30,7 +30,24 @@ Without these intents, the bot will not respond to commands or function properly
 ## Installation
 
 1. Clone the repository.
+
+```bash
+git clone [https://github.com/roman-petruzela/rpbot.git](https://github.com/roman-petruzela/rpbot.git)
+cd rpbot
+```
+
 2. Create and activate a virtual environment.
+- On Windows (PowerShell / Cmd):
+```bash
+python -m venv venv
+.\venv\Scripts\activate
+```
+- On Linux / macOS:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
 3. Install dependencies:
 
 ```bash
@@ -62,8 +79,13 @@ The bot uses a single configuration file: `config.json`.
 
 ## Run
 
+- On Windows (PowerShell / Cmd):
 ```bash
 python main.py
+```
+- On Linux / macOS:
+```bash
+python3 ./main.py
 ```
 
 ## Commands
