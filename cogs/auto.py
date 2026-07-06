@@ -1,20 +1,13 @@
-import json
-from pathlib import Path
-
 import discord
 from discord.ext import commands
 
+from config_manager import save_config
 from main import RPBot
 
 
 class Auto(commands.Cog):
     def __init__(self, bot: RPBot):
         self.bot = bot
-
-    def _save_config(self):
-        config_path = Path(__file__).resolve().parent.parent / "config.json"
-        with open(config_path, "w", encoding="utf-8") as config_file:
-            json.dump(self.bot.config, config_file, ensure_ascii=False, indent=2)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -75,7 +68,7 @@ class Auto(commands.Cog):
             )
 
         self.bot.config["auto_role_id"] = str(role.id)
-        self._save_config()
+        save_config()
         await ctx.send(f"Auto role byla nastavena na **{role.name}** (`{role.id}`).")
 
     @set_auto_role.error  # type: ignore

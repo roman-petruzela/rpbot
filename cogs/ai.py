@@ -1,19 +1,16 @@
 # fully vibecoded
 import asyncio
-import json
 import logging
 import os
 import random
-import tempfile
 import time
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 
 import discord
 from discord.ext import commands
 
-from config_manager import CONFIG
+from config_manager import save_config
 from main import RPBot
 
 try:
@@ -27,8 +24,7 @@ logger = logging.getLogger("rpbot.ai")
 class AI(commands.Cog):
     def __init__(self, bot: RPBot):
         self.bot = bot
-        # Sjednotíme config rovnou do třídy, aby Pyright neřval na self.bot.config
-        self.config: dict[str, Any] = getattr(bot, "config", CONFIG)
+        self.config: dict[str, Any] = bot.config
 
         self._client: Any = None
         # Typově ošetřený slovník pro rate-limity (id_kanalu: timestamp_v_sekundach)
@@ -38,42 +34,13 @@ class AI(commands.Cog):
         self._ensure_ai_config_defaults()
         self._init_client()
 
-    def _config_path(self) -> Path:
-        """Vrátí absolutní cestu ke `config.json`."""
-        return Path(__file__).resolve().parent.parent / "config.json"
-
     def _save_config(self):
-        """Uloží konfiguraci atomicky."""
-        config_path = self._config_path()
-        config_dir = config_path.parent
-
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=config_dir,
-            delete=False,
-            prefix="config.",
-            suffix=".tmp",
-        ) as temp_file:
-            temp_path = Path(temp_file.name)
-            json.dump(self.config, temp_file, ensure_ascii=False, indent=2)
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-
-        os.replace(temp_path, config_path)
+        save_config()
 
     def _load_ai_config_from_config_file(self) -> dict:
-        """Načte AI nastavení z `config.json`."""
-        config_path = self._config_path()
-        try:
-            with open(config_path, "r", encoding="utf-8") as config_file:
-                data = json.load(config_file)
-                ai_defaults = data.get("ai", {})
-                return ai_defaults if isinstance(ai_defaults, dict) else {}
-        except Exception as exc:
-            logger.warning("Unable to load AI config from config.json: %s", exc)
-            fallback_ai = self.config.get("ai", {})
-            return fallback_ai if isinstance(fallback_ai, dict) else {}
+        """Načte AI nastavení z již načtené runtime konfigurace."""
+        ai_defaults = self.config.get("ai", {})
+        return dict(ai_defaults) if isinstance(ai_defaults, dict) else {}
 
     def _ensure_ai_config_defaults(self):
         """Doplní chybějící klíče v `config['ai']` podle výchozích hodnot."""
