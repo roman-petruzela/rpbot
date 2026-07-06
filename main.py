@@ -17,8 +17,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rpbot")
 
 raw_token = os.getenv("DISCORD_TOKEN")
-if not raw_token:
-    raise ValueError("Token not found in .env file.")
+if not raw_token or raw_token in ["", "your_discord_bot_token"]:
+    logger.critical("DISCORD_TOKEN is missing or using the default placeholder!")  # fmt:skip
+    logger.info("Please check your .env file and ensure you pasted a valid token from the Discord Developer Portal.\n")  # fmt:skip
+    sys.exit(1)
 DISCORD_TOKEN = cast(str, raw_token)
 
 COMMAND_PREFIX = CONFIG["command_prefix"]
@@ -134,11 +136,11 @@ async def status(ctx):
     lines = [
         f"Prefix: **{COMMAND_PREFIX}**",
         f"Latency: **{bot.latency * 1000:.0f} ms**",
-        f"Servery: **{len(bot.guilds)}**",
-        f"Načtené cogy: **{cogs}**",
+        f"Servers: **{len(bot.guilds)}**",
+        f"Loaded cogs: **{cogs}**",
         f"Allowed channels: **{len(ALLOWED_CHANNEL_IDS)}**",
-        f"Message content intent: **{'ano' if bot.intents.message_content else 'ne'}**",
-        f"Members intent: **{'ano' if bot.intents.members else 'ne'}**",
+        f"Message content intent: **{'Y' if bot.intents.message_content else 'N'}**",
+        f"Members intent: **{'Y' if bot.intents.members else 'N'}**",
     ]
     await ctx.send("\n".join(lines))
 
@@ -165,7 +167,17 @@ async def load_cogs():
 async def main():
     async with bot:
         await load_cogs()
-        await bot.start(DISCORD_TOKEN)
+        try:
+            logger.info("Connecting to Discord API...")
+            await bot.start(DISCORD_TOKEN)
+        except discord.errors.LoginFailure:
+            logger.error("Failed to log into Discord!")  # fmt:skip
+            logger.error("The provided DISCORD_TOKEN in your .env file is improper, invalid, or missing.")  # fmt:skip
+            logger.error("Please double-check your .env file and ensure you pasted a valid token from the Discord Developer Portal.")  # fmt:skip
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"\nUnexpected error during bot startup: {e}\n")
+            sys.exit(1)
 
 
 @bot.command()
