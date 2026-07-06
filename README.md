@@ -32,7 +32,7 @@ Without these intents, the bot will not respond to commands or function properly
 1. Clone the repository.
 
 ```bash
-git clone [https://github.com/roman-petruzela/rpbot.git](https://github.com/roman-petruzela/rpbot.git)
+git clone https://github.com/roman-petruzela/rpbot.git
 cd rpbot
 ```
 
