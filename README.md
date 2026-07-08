@@ -30,7 +30,6 @@ Without these intents, the bot will not respond to commands or function properly
 ## Installation
 
 1. Clone the repository.
-
 ```bash
 git clone https://github.com/roman-petruzela/rpbot.git
 cd rpbot
@@ -49,22 +48,19 @@ source venv/bin/activate
 ```
 
 3. Install dependencies:
-
 ```bash
 pip install -r requirements.txt
 ```
 
 4. Create a `.env` file in the project root:
-
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 # optional for AI:
-# GOOGLE_API_KEY=your_google_api_key
-# or
 # GEMINI_API_KEY=your_google_api_key
 ```
 
-5. Create `config.json` in the project root (this file is local and ignored by git).
+5. Configure the Bot (`config.json`)
+The `config.json` file is already included in the repository as a clean template. Open it and fill in your server-specific IDs, prefix, and settings.
 
 ## Configuration
 
