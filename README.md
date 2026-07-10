@@ -35,31 +35,25 @@ git clone https://github.com/roman-petruzela/rpbot.git
 cd rpbot
 ```
 
-2. Create and activate a virtual environment.
-- On Windows (PowerShell / Cmd):
+2. Run the startup script.
+- On Windows:
 ```bash
-python -m venv venv
-.\venv\Scripts\activate
+start.bat
 ```
 - On Linux / macOS:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+chmod +x start.sh
+./start.sh
 ```
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Create a `.env` file in the project root:
+3. Create a `.env` file in the project root:
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 # optional for AI:
 # GEMINI_API_KEY=your_google_api_key
 ```
 
-5. Configure the Bot (`config.json`)
+4. Configure the Bot (`config.json`)
 The `config.json` file is already included in the repository as a clean template. Open it and fill in your server-specific IDs, prefix, and settings.
 
 ## Configuration
@@ -72,17 +66,6 @@ The bot uses a single configuration file: `config.json`.
 - Set `voice_trigger_id` to the voice channel ID that should create temporary rooms.
 - Set `log_channel_id` to a text channel for internal bot logs.
 - Restrict AI replies with `ai.allowed_channels` if needed.
-
-## Run
-
-- On Windows (PowerShell / Cmd):
-```bash
-python main.py
-```
-- On Linux / macOS:
-```bash
-python3 ./main.py
-```
 
 ## Commands
 
